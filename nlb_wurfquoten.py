@@ -116,10 +116,15 @@ def fetch_game(page, game_id):
     page.evaluate("""() => { const t=[...document.querySelectorAll('[role=tab]')]
                               .find(x=>x.textContent.trim()==='Stats'); if(t) t.click(); }""")
     try:
-        page.wait_for_selector("table.c-table--statistic", timeout=8000)
+        # warten, bis die Spielerzeilen geladen sind (mehr als die 4 Kopfzeilen)
+        page.wait_for_function(
+            "() => [...document.querySelectorAll('table.c-table--statistic')].some(t => t.rows.length > 5)",
+            timeout=15000)
     except Exception:
-        return None
+        return None  # Spiel noch nicht gespielt / keine Statistik
     tables = page.evaluate(EXTRACT_JS)
+    if not any(len(t["rows"]) > 5 for t in tables):
+        return None
     CACHE.mkdir(exist_ok=True)
     cache_file.write_text(json.dumps(tables, ensure_ascii=False))
     return tables
@@ -154,6 +159,10 @@ def main():
             print(f"[{i}/{len(ids)}] {gid}: {len(pl)} Spieler")
             time.sleep(args.delay)
         browser.close()
+
+    if not all_players:
+        print("Keine Spielerdaten gefunden, Abbruch. Übersprungen:", skipped)
+        return
 
     res = aggregate(all_players)
     res = res[res["wuerfe"] >= args.min_wuerfe].sort_values(["quote_total_%", "wuerfe"], ascending=False)

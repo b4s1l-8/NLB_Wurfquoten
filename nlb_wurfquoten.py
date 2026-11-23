@@ -16,6 +16,13 @@ BASE = "https://www.handball.ch/de/matchcenter"
 GROUP_ID = 17526  # Männer NLB, Hauptrunde MNLB-01, Saison 2026/27
 CACHE = Path("cache")
 
+# JS: true, sobald beide Statistik-Tabellen Spielerzeilen enthalten
+READY_JS = """
+() => { const ts = [...document.querySelectorAll('table.c-table--statistic')];
+        return ts.length >= 2 && ts.every(t => [...t.rows].some(
+            r => /^\\d{1,3}$/.test(((r.cells[0] && r.cells[0].textContent) || '').trim()))); }
+"""
+
 EXTRACT_JS = """
 () => [...document.querySelectorAll('table.c-table--statistic')].map(t => ({
     team: t.rows[0] ? t.rows[0].cells[0].textContent.replace(/\\s+/g, ' ').trim() : '',
@@ -116,15 +123,12 @@ def fetch_game(page, game_id):
     page.evaluate("""() => { const t=[...document.querySelectorAll('[role=tab]')]
                               .find(x=>x.textContent.trim()==='Stats'); if(t) t.click(); }""")
     try:
-        # warten, bis die Spielerzeilen geladen sind (mehr als die 4 Kopfzeilen)
-        page.wait_for_function(
-            "() => [...document.querySelectorAll('table.c-table--statistic')].some(t => t.rows.length > 5)",
-            timeout=15000)
+        # Die Tabellen erscheinen zuerst als leeres Gerüst. Warten, bis in beiden
+        # Team-Tabellen echte Spielerzeilen (Rückennummer in der ersten Zelle) stehen.
+        page.wait_for_function(READY_JS, timeout=20000)
     except Exception:
         return None  # Spiel noch nicht gespielt / keine Statistik
     tables = page.evaluate(EXTRACT_JS)
-    if not any(len(t["rows"]) > 5 for t in tables):
-        return None
     CACHE.mkdir(exist_ok=True)
     cache_file.write_text(json.dumps(tables, ensure_ascii=False))
     return tables

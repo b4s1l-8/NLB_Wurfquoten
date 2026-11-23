@@ -1,0 +1,19 @@
+name: NLB Wurfquoten
+on: workflow_dispatch
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright pandas
+      - run: playwright install --with-deps chromium
+      - run: python nlb_wurfquoten.py --min-wuerfe 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nlb-wurfquoten
+          path: |
+            nlb_wurfquoten.csv
+            nlb_goalies.csv
